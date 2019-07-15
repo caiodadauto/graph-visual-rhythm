@@ -1,179 +1,162 @@
-from __future__ import absolute_import
-from __future__ import print_function
-
-import os
 import sys
-import optparse
-import subprocess
-import random
+import time
 
-import sqlite3
-from sqlite3 import Error
-import csv
-
-import matplotlib.pyplot as plt
-import networkx as nx
-from networkx import *
-
-import math
-
+import json
+import logging
 import numpy as np
+import graph_tool as gt
 
-from itertools import izip
-
-
-def create_database(c, conn):
-
-    try:
-        c.execute('''CREATE TABLE IF NOT EXISTS graphs
-                    (time integer, degree text, betweeness text, 
-                    closeness text, pagerank text, harmonic_centrality, local_efficiency text,
-                    global_efficiency text, maximal_matching text, nVehicles integer DEFAULT 0 )''')
-        c.execute("CREATE INDEX graph_index on graph (time)")
-    except Error as e:
-        print(e)
-        return None
-
-    return c, conn
+# from pymongo import MongoClient
+from scipy import spatial
+from multiprocessing import Pool
+import logging.handlers as handlers
 
 
-def drawGraph(G):
-    nx.draw(G, node_size=50, nodecolor='r', edge_color='b')
-    plt.show()
+def density(G):
+    n = G.num_vertices()
+    m = G.num_edges()
+    if m == 0 or n <= 1:
+      return 0.0
+    return 2 * m / (n * (n - 1))
 
+def get_metrics(G, t):
+    return dict(
+        time=t,
+        nodes=list(G.vp.label),
+        n_vehicle=G.num_vertices(),
+        degree=list(np.array(G.degree_property_map('total').get_array()) / (G.num_vertices() - 1)),
+        density=density(G)
+    )
 
-def connecting_nodes(nodes):
-    transmissionRange = 200.0  # condition in meters to create an edge between u and v
-    G = nx.Graph()
+def store_metrics(data):#, db, collection):
+    time = data["time"]
+    with open("jsons/%s.json"%time, "w") as f:
+        json.dump(data, f)
 
-    for u in nodes:
-        G.add_node(u)
-        for v in nodes:
-            if u == v:
-                continue
-            G.add_node(v)
-            distance = distanceBetweenVehicles(
-                nodes[u][0], nodes[u][1], nodes[v][0], nodes[v][1])
-            if distance <= transmissionRange:
-                # print(u," ",v, " : ",distance)
-                
-                G.add_edge(u, v, weight=distance)
+    # db[collection].insert_many(data)
+    # print("There were written %s graphs information in %s collection."%(len(data), collection))
+
+def connecting_nodes(labels, pos):
+    G = gt.Graph(directed=False)
+    n_nodes = len(labels)
+    G.add_vertex(n_nodes)
+    G.vp.label = G.new_vp("string", vals=labels)
+    G.ep.weight = G.new_ep("float")
+    transmission_range = 200.0
+
+    for i in range(n_nodes - 1):
+        dist = spatial.distance.cdist([pos[i]], pos[i+1:]).ravel()
+        edges_dist = np.array(list(
+          zip([i] * dist.shape[0], range(i+1, n_nodes), dist)
+        ), dtype='u4, u4, f4')
+        mask = np.ma.masked_less_equal(dist, transmission_range).mask
+        if np.any(mask):
+          G.add_edge_list(list(edges_dist[mask]), eprops=[G.ep.weight])
     return G
 
+def process_lines(graph_lines):
+    n_lines = len(graph_lines)
+    pos = np.zeros(((n_lines - 1), 2), dtype=np.float32)
+    labels = np.full((n_lines - 1), fill_value='0', dtype='U8')
+    for i in range(n_lines - 1):
+        id_, x, y = graph_lines[i].split(":")
+        labels[i] = id_
+        pos[i][0] = float(x)
+        pos[i][1] = float(y)
+    time = graph_lines[-1].split(" ")[1]
+    labels = np.flip(labels)
+    pos = np.flip(pos, 0)
+    labels, idx = np.unique(labels, return_index=True)
+    pos = pos[idx, :]
+    G = connecting_nodes(labels, pos)
+    return get_metrics(G, time)
 
-def distanceBetweenVehicles(x1, y1, x2, y2):
-    return math.sqrt(math.pow(x2-x1, 2.0) + math.pow(y2-y1, 2.0))
-
-def network_measures(G, line, c, conn):
-
-    bc = str(betweenness_centrality(G))
-    dg = str(degree_centrality(G))
-    cc = str(closeness_centrality(G))
-    hc = str(harmonic_centrality(G))
-    pr = str(pagerank(G))
-    # vr = str(voteRank(G))
-    clusters = str(clustering(G))
-    # eigen = str(eigenvector_centrality(G))
-    # ecc = str(eccentricity(G))
-
-    le = str(local_efficiency(G))
-    ge = str(global_efficiency(G))
-    mm = str(maximal_matching(G))
-
-    t = line.split(" ")
-
-    c.execute("INSERT INTO graphs VALUES ('" +
-              t[1]+"','" + dg+"','"+bc+"','"+cc+"','"+pr+"','"+hc+"','"+clusters+"','"+le+"','"+ge+"','"+mm+"' )")
-    conn.commit()
-
-    # drawGraph(G)
-    #densidade relativa de 0-1
-    # density_plot(mydata)
-    
-def update_number_of_vehicles(time, nveh, c):
-
-    c.execute("UPDATE graphs SET nVehicles = " +int(nveh)+" WHERE time ="+time)
-    
-def measure_graphs():
-
-    #creating and inserting data
-    conn = sqlite3.connect('database.db')
-    conn.text_factory = str
-    c = conn.cursor()
-    
-    create_database(c, conn)
-
-    graphs = open("graphs.txt", "w")
-    count = 0
-    lim = 200
-    with open("24hours/graphs.txt", "r") as f:
-        nodes = {}
-        for line in f:
-            if count <= lim:
-                if "END" not in line:
-                    s1 = line.split(":")
-                    nodes[int(s1[0])] = [float(s1[1]), float(s1[2])]
-                else:
-                    print(line)
-                    G = connecting_nodes(nodes)
-                    network_measures(G, line, c, conn)
-                    nodes.clear()
-                    graphs.write(line)
-                    count = count + 1
-            else:
-                break
-    # with open("vehicles.txt", "r") as f:
-    #     for line in f:
-    #         s1 = line.split(" ")
-    #         update_number_of_vehicles(s1[0], s1[1], c)
-    #         conn.commit()
-    graphs.close()
-    
-    sys.stdout.flush()
-
-def show_graph(G):
-
-    G = nx.random_geometric_graph(50, 0.125)
-    pos = nx.get_node_attributes(G, 'pos')
-    # find node near center (0.5,0.5)
-    dmin = 1
-    ncenter = 0
-    pos = nx.random_layout(G)
-    # pos = nx.spring_layout(G)
-
-    for n in pos:
-        x, y = pos[n]
-        d = (x-0.5)**2+(y-0.5)**2
-        if d < dmin:
-            ncenter = n
-            dmin = d
-
-    # color by path length from node near center
-    
-    p = dict(nx.degree_centrality(G))
-
-    plt.figure(figsize=(10, 10))
-    nx.draw_networkx_edges(G, pos, nodelist=[ncenter], alpha=0.8)
-    nx.draw_networkx_nodes(G, pos, nodelist=list(p.keys()), node_size=80, node_color=p.values(), cmap=plt.cm.Reds_r)
-
-    plt.xlim(-0.05, 1.05)
-    plt.ylim(-0.05, 1.05)
-    plt.axis('off')
-    # plt.savefig('random_geometric_graph.png')
-    plt.show()
-
-def figure_paper(filename):
-
-    with open(filename, "r") as f:
-        nodes = {}
-        for line in f:
+def read_file_graph():
+    with open("../graphs.txt", "r") as file_:
+        graph_lines = []
+        for line in file_:
             if "END" not in line:
-                s1 = line.split(":")
-                nodes[int(s1[0])] = [float(s1[1]), float(s1[2])]
+                graph_lines.append(line)
             else:
-                show_graph(connecting_nodes(nodes))
-                nodes.clear()
-if __name__ == "__main__":
+                graph_lines.append(line)
+                tmp_lines = graph_lines.copy()
+                graph_lines = []
+                yield tmp_lines
 
+def measure_graphs():
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_logger = logging.getLogger('Logger')
+    file_logger.setLevel(logging.DEBUG)
+    file_handler = handlers.RotatingFileHandler(
+        'logger.log', maxBytes=200 * 1024 * 1024, backupCount=1
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    file_logger.addHandler(file_handler)
+    # client = MongoClient('localhost', 27017)
+    # db = client.vanet
+
+    graph_lines_generator = read_file_graph()
+    with Pool(4) as p:
+        start = time.time()
+        for json_measuments in p.imap_unordered(process_lines, graph_lines_generator):
+            store_metrics(json_measuments)
+            file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
+
+if __name__ == "__main__":
     measure_graphs()
-    # figure_paper("draw.txt")
+
+
+
+# def measure_graphs():
+#     client = MongoClient('localhost', 27017)
+#     db = client.vanet
+
+#     with open("../graphs.txt", "r") as f:
+#         graphs = []
+#         G = nx.Graph()
+#         for line in f:
+#             if "END" not in line:
+#                 id_, x, y = line.split(":")
+#                 G.add_node(int(id_), pos=(float(x), float(y)))
+#             else:
+#                 connecting_nodes(G)
+#                 graphs.append((line.split(" ")[1], G.copy()))
+#                 G.clear()
+#                 print(len(graphs))
+#                 if len(graphs) % 100 == 0:
+#                     store_metrics(graphs, db, 'cologne')
+#                     graphs = []
+#         if len(graphs) > 0:
+#             connecting_nodes(graphs)
+#             store_metrics(graphs, db, 'cologne')
+
+# def connecting_nodes(G, pos):
+#     transmission_range = 200.0  # condition in meters to create an edge between u and v
+
+#     nodes = G.nodes()
+#     distances = spatial.distance.squareform(spatial.distance.pdist(pos), checks=False).ravel()
+#     weighted_edges = np.concatenate([ [i_.ravel()], [j_.ravel()], [distances] ]).T
+#     mask = np.ma.masked_greater_equal(distances, transmission_range).mask
+#     G.add_weighted_edges_from(weighted_edges[mask, :])
+
+# def store_metrics(graphs, db, collection):
+#     data = []
+#     for time, G in graphs:
+#         data.append(dict(
+#             time=time,
+#             n_vehicle=len(G.nodes),
+#             degree=nx.degree_centrality(G),
+#             betweeness=nx.betweenness_centrality(G),
+#             closeness=nx.closeness_centrality(G),
+#             # pagerank=nx.pagerank(G),
+#             # harmonic_centrality=nx.harmonic_centrality(G),
+#             # clustering_cf=nx.clustering(G),
+#             # local_efficiency=nx.local_efficiency(G),
+#             # global_efficiency=nx.global_efficiency(G),
+#             density=nx.density(G)
+#             # maximal_matching=nx.maximal_matching(G)
+#         ))
+
+#     db[collection].insert_many(data)
+#     print("There were written %s graphs information in %s collection."%(len(data), collection))
