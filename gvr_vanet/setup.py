@@ -10,7 +10,8 @@ from distutils.spawn import find_executable
 
 SUMO_SRC = 'https://sourceforge.net/projects/sumo/files/sumo/version 1.2.0/sumo-src-1.2.0.tar.gz'
 BASE_PATH = Path(os.path.dirname(os.path.abspath(__file__)))
-BIN_PATH = Path.home().joinpath('.local/bin')
+SHARE_PATH = Path.home().joinpath('.local/share')
+BASHRC_PATH = Path.home().joinpath('.bashrc')
 SUMO_PATH = BASE_PATH.joinpath('sumo-1.2.0')
 BUILD_PATH = SUMO_PATH.joinpath('build/cmake-build')
 N_CPU = 4#multiprocessing.cpu_count()
@@ -20,7 +21,7 @@ class SumoBuild(build):
         # run original build code
         build.run(self)
 
-        cmd_bin = ['mv', 'bin/sumo', str(BIN_PATH)]
+        cmd_mv = ['mv', str(SUMO_PATH), str(SHARE_PATH)]
         cmd_tar = ['tar', '-xzf', 'sumo-1.2.0.tar.gz']
         cmd_wget = ['wget', '-O', BASE_PATH.joinpath('sumo-1.2.0.tar.gz'), SUMO_SRC]
         cmd_cmake = ['cmake', '../..']
@@ -35,10 +36,15 @@ class SumoBuild(build):
                 os.makedirs(BUILD_PATH)
             sub.run(cmd_cmake, cwd=BUILD_PATH)
             sub.run(cmd_make, cwd=BUILD_PATH)
-            sub.run(cmd_bin, cwd=SUMO_PATH)
+            sub.run(cmd_mv)
 
         if not find_executable('sumo'):
             self.execute(compile, [], 'Compiling SUMO')
+            path_export = 'export PATH="$PATH:%s"'%(SHARE_PATH.joinpath('sumo-1.2.0/bin'))
+            sumo_export = 'export SUMO_HOME="%s"'%(SHARE_PATH.joinpath('sumo-1.2.0'))
+            bashrc_text = BASHRC_PATH.read_text()
+            if not sumo_export in bashrc_text:
+                BASHRC_PATH.write_text('{bashrc_text}\n{path_export}\n{sumo_export}\n'.format(**vars()))
         self.mkpath(self.build_lib)
 
 class SumoInstall(install):
