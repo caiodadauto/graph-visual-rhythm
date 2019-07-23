@@ -1,3 +1,6 @@
+trip_info.xml
+raw_graph.dat
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
