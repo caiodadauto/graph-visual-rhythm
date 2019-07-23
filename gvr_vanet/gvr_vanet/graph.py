@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 import logging
@@ -6,8 +7,11 @@ import logging.handlers as handlers
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
-import graph_tool as gt
 from scipy import spatial
+try:
+    import graph_tool as gt
+except ImportError:
+    import networkx as nx
 
 
 def density(G):
@@ -18,13 +22,23 @@ def density(G):
     return 2 * m / (n * (n - 1))
 
 def get_metrics(G, t):
-    return dict(
-        time=t,
-        nodes=list(G.vp.label),
-        n_vehicle=G.num_vertices(),
-        degree=list(np.array(G.degree_property_map('total').get_array()) / (G.num_vertices() - 1)),
-        density=density(G)
-    )
+    if "graph_tool" in sys.modules:
+        return dict(
+            time=t,
+            nodes=list(G.vp.label),
+            n_vehicle=G.num_vertices(),
+            degree=list(np.array(G.degree_property_map('total').get_array()) / (G.num_vertices() - 1)),
+            density=density(G)
+        )
+    else:
+        return dict(
+            time=t,
+            nodes=list(dict(G.nodes(data='label')).values()),
+            n_vehicle=G.number_of_nodes(),
+            degree=nx.degree_centrality(G),
+            density=nx.density(G)
+        )
+
 
 def store_metrics(data, db=None, collection=None):
     if not db or not collection:
@@ -38,21 +52,29 @@ def store_metrics(data, db=None, collection=None):
         db[collection].insert_many(data)
 
 def connecting_nodes(labels, pos):
-    G = gt.Graph(directed=False)
     n_nodes = len(labels)
-    G.add_vertex(n_nodes)
-    G.vp.label = G.new_vp("string", vals=labels)
-    G.ep.weight = G.new_ep("float")
     transmission_range = 200.0
+
+    if "graph_tool" in sys.modules:
+        G = gt.Graph(directed=False)
+        G.add_vertex(n_nodes)
+        G.vp.label = G.new_vp("string", vals=labels)
+        G.ep.weight = G.new_ep("float")
+    else:
+        G = nx.Graph()
+        G.add_nodes_from([(idx, dict(label=l)) for idx, l in zip(range(n_nodes), labels)])
 
     for i in range(n_nodes - 1):
         dist = spatial.distance.cdist([pos[i]], pos[(i + 1):]).ravel()
         edges_dist = np.array(list(
-          zip([i] * dist.shape[0], range(i + 1, n_nodes), dist)
+              zip([i] * dist.shape[0], range(i + 1, n_nodes), dist)
         ), dtype='u4, u4, f4')
         mask = np.ma.masked_less_equal(dist, transmission_range).mask
         if np.any(mask):
-          G.add_edge_list(list(edges_dist[mask]), eprops=[G.ep.weight])
+            if "graph_tool" in sys.modules:
+                G.add_edge_list(list(edges_dist[mask]), eprops=[G.ep.weight])
+            else:
+                G.add_weighted_edges_from(list(edges_dist[mask]))
     return G
 
 def process_lines(graph_lines):
