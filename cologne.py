@@ -13,5 +13,5 @@ else:
 # db = client.vanet
 
 gvr.run_simulation(sumocfg, minutes=2, tripinfo=tripinfo, rawgraph=rawgraph)
-gvr.measure_graphs(rawgraph=rawgraph)
+# gvr.measure_graphs(rawgraph=rawgraph)
 

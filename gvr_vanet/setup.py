@@ -72,14 +72,14 @@ setup(
     maintainer_email='caio.dadauto@ic.unicamp.br and silvana@lrc.ic.unicamp.br',
     license='GPLv3',
     packages=['gvr_vanet'],
-    package_data={
-        'gvr_vanet': [
-            'traci/*', 'sumolib/*', 'sumolib/files/*',
-            'sumolib/net/*', 'sumolib/output/*', 'sumolib/scenario/*',
-            'sumolib/sensors/*', 'sumolib/shapes/*', 'sumolib/visualization/*',
-            'sumolib/output/convert/*', 'sumolib/scenario/scenarios/*', 'sumolib/scenario/vtypes/*'
-        ]
-    },
+    # package_data={
+    #     'gvr_vanet': [
+    #         'traci/*', 'sumolib/*', 'sumolib/files/*',
+    #         'sumolib/net/*', 'sumolib/output/*', 'sumolib/scenario/*',
+    #         'sumolib/sensors/*', 'sumolib/shapes/*', 'sumolib/visualization/*',
+    #         'sumolib/output/convert/*', 'sumolib/scenario/scenarios/*', 'sumolib/scenario/vtypes/*'
+    #     ]
+    # },
     # long_description=read('README.rst'),
     cmdclass={
         'build': SumoBuild,

@@ -6,11 +6,18 @@ import sys
 import logging
 import subprocess as sub
 import logging.handlers as handlers
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+if 'SUMO_HOME' in os.environ and os.environ["SUMO_HOME"]:
+     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+     sys.path.append(tools)
+else:
+     sys.exit("Please declare environment variable 'SUMO_HOME'. If the system  does not have any \nSUMO installation and the gvr_vanet was installed by pip, the SUMO was compiled and \nmoved to $HOME/.local/share and bashrc has already modified to include the environment \nvariables; in this case, only run \n\n>>\t\t source $HOME/.profile")
 
 import numpy as np
 
-import traci
+try:
+    import traci
+except ImportError:
+     sys.exit("Please check environment variable 'SUMO_HOME; and/or try\n\n>>\t\t source $HOME/.profile")
 
 
 def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw_graph.dat"):
