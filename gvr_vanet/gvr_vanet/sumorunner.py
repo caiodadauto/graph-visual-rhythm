@@ -38,8 +38,7 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
 
     traci.start(["sumo", "-c", sumocfg, "--tripinfo-output", tripinfo])
 
-    n = 0
-
+    graph_size = 0
     id_vehicle = 1
     vehicles = {}
     with open(rawgraph, "w") as f:
@@ -49,6 +48,7 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
             if (current_time % interval) == 0:
                 n_vehicles = 0
                 for veh_id in traci.vehicle.getIDList():
+                    graph_size += 1
                     speed = traci.vehicle.getSpeed(veh_id)
                     x, y = traci.vehicle.getPosition(veh_id)
                     lon, lat = traci.simulation.convertGeo(x, y)
@@ -64,11 +64,11 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
 
                     f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
                 if n_vehicles >= 1:
-                    file_logger.info("A Graph was simulated at %s with %s new vehicles."%(current_time, n_vehicles))
+                    file_logger.info("A Graph was simulated at %s with %s new vehicles and size %s."%(current_time, n_vehicles, graph_size))
                     f.write("END " + str(current_time) + " \n")
-                n += 1
-
-
+                    graph_size = 0
+    traci.close()
+    sys.stdout.flush()
 
 # def sumo_generator(interval):
 #     id_vehicle = 1
