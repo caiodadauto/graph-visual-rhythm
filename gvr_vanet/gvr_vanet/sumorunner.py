@@ -32,9 +32,9 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
     file_logger.addHandler(file_handler)
 
     seconds = 60
-    milisseconds = 1000
+    # milisseconds = 1000
     minutes = minutes
-    interval = minutes * seconds * milisseconds
+    interval = minutes * seconds# * milisseconds
 
     traci.start(["sumo", "-c", sumocfg, "--tripinfo-output", tripinfo])
 
@@ -43,7 +43,7 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
     vehicles = {}
     with open(rawgraph, "w") as f:
         while traci.simulation.getMinExpectedNumber() > 0:
-            current_time = traci.simulation.getCurrentTime()
+            current_time = traci.simulation.getTime()
             traci.simulationStep()
             if (current_time % interval) == 0:
                 n_vehicles = 0
