@@ -48,7 +48,9 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
             traci.simulationStep()
             if (current_time % interval) == 0:
                 n_vehicles = 0
+                list_size = 0
                 for veh_id in traci.vehicle.getIDList():
+                    list_size += 1
                     graph_size += 1
                     speed = traci.vehicle.getSpeed(veh_id)
                     x, y = traci.vehicle.getPosition(veh_id)
@@ -64,6 +66,7 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
                         index = vehicles[veh_id]
 
                     f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
+                file_logger.info("Read a list with size %s."%(list_size))
                 if n_vehicles >= 1:
                     n_graphs += 1
                     file_logger.info("Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
