@@ -38,6 +38,7 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
 
     traci.start(["sumo", "-c", sumocfg, "--tripinfo-output", tripinfo])
 
+    n_graphs = 0
     graph_size = 0
     id_vehicle = 1
     vehicles = {}
@@ -64,7 +65,8 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
 
                     f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
                 if n_vehicles >= 1:
-                    file_logger.info("A Graph was simulated at %s with %s new vehicles and size %s."%(current_time, n_vehicles, graph_size))
+                    n_graphs += 1
+                    file_logger.info("Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
                     f.write("END " + str(current_time) + " \n")
                     graph_size = 0
     traci.close()
