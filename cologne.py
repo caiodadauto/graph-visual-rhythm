@@ -7,11 +7,11 @@ if len(sys.argv) > 2:
     rawgraph = sys.argv[3]
 else:
     tripinfo = 'trip_info.xml'
-    rawgraph = '../graphs.txt'#'raw_graph.dat'
+    rawgraph = 'raw_graph.dat'
 
 # client = MongoClient('localhost', 27017)
 # db = client.vanet
 
-gvr.run_simulation(sumocfg, minutes=1, tripinfo=tripinfo, rawgraph=rawgraph)
+gvr.run_simulation(sumocfg, minutes=.5, tripinfo=tripinfo, rawgraph=rawgraph)
 # gvr.measure_graphs(rawgraph=rawgraph)
 

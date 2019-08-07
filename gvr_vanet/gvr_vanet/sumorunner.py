@@ -66,12 +66,13 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
                         index = vehicles[veh_id]
 
                     f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
-                file_logger.info("Read a list with size %s."%(list_size))
-                if n_vehicles >= 1:
-                    n_graphs += 1
-                    file_logger.info("Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
-                    f.write("END " + str(current_time) + " \n")
-                    graph_size = 0
+                #file_logger.info("Read a list with size %s."%(list_size))
+                #if n_vehicles >= 1:
+                n_graphs += 1
+                file_logger.info(
+                    "Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
+                f.write("END " + str(current_time) + " \n")
+                graph_size = 0
     traci.close()
     sys.stdout.flush()
 
