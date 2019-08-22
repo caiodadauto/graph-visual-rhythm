@@ -7,7 +7,7 @@ if len(sys.argv) > 2:
     rawgraph = sys.argv[3]
 else:
     tripinfo = 'trip_info.xml'
-    rawgraph = 'raw_graph.dat'
+    rawgraph = '../graphs.txt'#raw_graph.dat'
 
 # client = MongoClient('localhost', 27017)
 # db = client.vanet

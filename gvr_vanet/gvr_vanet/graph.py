@@ -87,21 +87,23 @@ def connecting_nodes(labels, pos, dir_name=None):
     return G
 
 def process_lines(graph_lines):
-    n_lines = len(graph_lines)
-    pos = np.zeros(((n_lines - 1), 2), dtype=np.float32)
-    labels = np.full((n_lines - 1), fill_value='0', dtype='U8')
-    for i in range(n_lines - 1):
-        id_, x, y = graph_lines[i].split(":")
-        labels[i] = id_
-        pos[i][0] = float(x)
-        pos[i][1] = float(y)
-    time = graph_lines[-1].split(" ")[1]
-    labels = np.flip(labels)
-    pos = np.flip(pos, 0)
-    labels, idx = np.unique(labels, return_index=True)
-    pos = pos[idx, :]
-    G = connecting_nodes(labels, pos, dir_name=str(time))
-    return get_metrics(G, time)
+    if graph_lines:
+        n_lines = len(graph_lines)
+        pos = np.zeros(((n_lines - 1), 2), dtype=np.float32)
+        labels = np.full((n_lines - 1), fill_value='0', dtype='U8')
+        for i in range(n_lines - 1):
+            id_, x, y = graph_lines[i].split(":")
+            labels[i] = id_
+            pos[i][0] = float(x)
+            pos[i][1] = float(y)
+        time = graph_lines[-1].split(" ")[1]
+        labels = np.flip(labels)
+        pos = np.flip(pos, 0)
+        labels, idx = np.unique(labels, return_index=True)
+        pos = pos[idx, :]
+        G = connecting_nodes(labels, pos, dir_name=str(time))
+        return get_metrics(G, time)
+    return None
 
 def read_file_graph(rawgraph):
     with open(rawgraph, "r") as file_:
@@ -115,6 +117,7 @@ def read_file_graph(rawgraph):
                 graph_lines = []
                 if len(tmp_lines) > 1:
                     yield tmp_lines
+    return None
 
 def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=None):
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -135,5 +138,8 @@ def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=No
     with Pool(n_proc) as p:
         start = time.time()
         for json_measuments in p.imap_unordered(process_lines, graph_lines_generator):
-            store_metrics(json_measuments, db, collection)
-            file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
+            if json_measuments:
+                store_metrics(json_measuments, db, collection)
+                file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
+            else:
+                file_logger.info("Duration >> %s -- None"%(time.time() - start))
