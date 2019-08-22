@@ -12,6 +12,6 @@ else:
 # client = MongoClient('localhost', 27017)
 # db = client.vanet
 
-gvr.run_simulation(sumocfg, minutes=.5, tripinfo=tripinfo, rawgraph=rawgraph)
-# gvr.measure_graphs(rawgraph=rawgraph)
+#gvr.run_simulation(sumocfg, minutes=.5, tripinfo=tripinfo, rawgraph=rawgraph)
+gvr.measure_graphs(rawgraph=rawgraph)
 

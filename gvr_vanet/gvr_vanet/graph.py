@@ -8,11 +8,12 @@ from multiprocessing import Pool, cpu_count
 
 import numpy as np
 from scipy import spatial
-try:
-    import graph_tool as gt
-except ImportError:
-    import networkx as nx
+# try:
+#     import graph_tool as gt
+# except ImportError:
+import networkx as nx
 
+GRAPH_ROOT = "graph_doc/"
 
 def density(G):
     n = G.num_vertices()
@@ -25,7 +26,7 @@ def get_metrics(G, t):
     if "graph_tool" in sys.modules:
         return dict(
             time=t,
-            nodes=list(G.vp.label),
+            # nodes=list(G.vp.label),
             n_vehicle=G.num_vertices(),
             degree=list(np.array(G.degree_property_map('total').get_array()) / (G.num_vertices() - 1)),
             density=density(G)
@@ -33,25 +34,31 @@ def get_metrics(G, t):
     else:
         return dict(
             time=t,
-            nodes=list(dict(G.nodes(data='label')).values()),
+            # nodes=list(dict(G.nodes(data='label')).values()),
             n_vehicle=G.number_of_nodes(),
             degree=nx.degree_centrality(G),
             density=nx.density(G)
         )
 
+def store_graph(G, dir_name, pos, labels, weights):
+    path = os.path.join(GRAPH_ROOT, dir_name)
+    if not os.path.isdir(path):
+        os.makedirs(path)
+    nx.write_sparse6(G, os.path.join(path, "graph.sparse6"))
+    np.savez_compressed(os.path.join(path, "node_pos.npz"), pos)
+    np.savez_compressed(os.path.join(path, "node_labels.npz"), labels)
+    np.savez_compressed(os.path.join(path, "edge_weights.npz"), weights)
+
 
 def store_metrics(data, db=None, collection=None):
     if not db or not collection:
-        time = data["time"]
-        graph_dir = "graph_doc/"
-        if not os.path.isdir(graph_dir):
-            os.makedirs(graph_dir)
-        with open(graph_dir + "%s.json"%time, "w") as f:
+        path = os.path.join(GRAPH_ROOT, str(data["time"]), "metrics.json")
+        with open(path, "w") as f:
             json.dump(data, f)
     else:
         db[collection].insert_many(data)
 
-def connecting_nodes(labels, pos):
+def connecting_nodes(labels, pos, dir_name=None):
     n_nodes = len(labels)
     transmission_range = 200.0
 
@@ -75,6 +82,8 @@ def connecting_nodes(labels, pos):
                 G.add_edge_list(list(edges_dist[mask]), eprops=[G.ep.weight])
             else:
                 G.add_weighted_edges_from(list(edges_dist[mask]))
+    if dir_name:
+        store_graph(G, dir_name, pos, labels, dist[mask])
     return G
 
 def process_lines(graph_lines):
@@ -91,7 +100,7 @@ def process_lines(graph_lines):
     pos = np.flip(pos, 0)
     labels, idx = np.unique(labels, return_index=True)
     pos = pos[idx, :]
-    G = connecting_nodes(labels, pos)
+    G = connecting_nodes(labels, pos, dir_name=str(time))
     return get_metrics(G, time)
 
 def read_file_graph(rawgraph):
@@ -104,7 +113,8 @@ def read_file_graph(rawgraph):
                 graph_lines.append(line)
                 tmp_lines = graph_lines.copy()
                 graph_lines = []
-                yield tmp_lines
+                if len(tmp_lines) > 1:
+                    yield tmp_lines
 
 def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=None):
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -116,6 +126,9 @@ def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=No
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     file_logger.addHandler(file_handler)
+
+    if not os.path.isdir(GRAPH_ROOT):
+        os.makedirs(GRAPH_ROOT)
 
     n_proc = cpu_count() if not n_proc else n_proc
     graph_lines_generator = read_file_graph(rawgraph)
