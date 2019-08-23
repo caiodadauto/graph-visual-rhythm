@@ -105,17 +105,18 @@ def process_lines(graph_lines):
         return get_metrics(G, time)
     return None
 
-def read_file_graph(rawgraph):
+def read_file_graph(rawgraph, last_read_time=-1):
     with open(rawgraph, "r") as file_:
         graph_lines = []
         for line in file_:
             if "END" not in line:
                 graph_lines.append(line)
             else:
+                time = float(line.split(" ")[1])
                 graph_lines.append(line)
                 tmp_lines = graph_lines.copy()
                 graph_lines = []
-                if len(tmp_lines) > 1:
+                if len(tmp_lines) > 1 and time > last_read_time:
                     yield tmp_lines
     return None
 
