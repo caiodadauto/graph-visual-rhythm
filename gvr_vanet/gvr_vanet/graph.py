@@ -40,14 +40,16 @@ def get_metrics(G, t):
             density=nx.density(G)
         )
 
-def store_graph(G, dir_name, pos, labels, weights):
+def store_graph(G, dir_name, pos, labels):
     path = os.path.join(GRAPH_ROOT, dir_name)
     if not os.path.isdir(path):
         os.makedirs(path)
     nx.write_sparse6(G, os.path.join(path, "graph.sparse6"))
     np.savez_compressed(os.path.join(path, "node_pos.npz"), pos)
     np.savez_compressed(os.path.join(path, "node_labels.npz"), labels)
-    np.savez_compressed(os.path.join(path, "edge_weights.npz"), weights)
+    weights = list(G.edges(data='weight'))
+    if weights:
+      np.savez_compressed(os.path.join(path, "edge_weights.npz"), np.array(weights)[:,-1])
 
 
 def store_metrics(data, db=None, collection=None):
@@ -83,7 +85,7 @@ def connecting_nodes(labels, pos, dir_name=None):
             else:
                 G.add_weighted_edges_from(list(edges_dist[mask]))
     if dir_name:
-        store_graph(G, dir_name, pos, labels, dist[mask])
+        store_graph(G, dir_name, pos, labels)
     return G
 
 def process_lines(graph_lines):
