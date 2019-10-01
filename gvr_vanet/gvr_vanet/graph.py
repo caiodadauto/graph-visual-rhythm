@@ -14,6 +14,7 @@ from scipy import spatial
 import networkx as nx
 
 GRAPH_ROOT = "graph_doc/"
+LAST_TIME_READ = -1
 
 def density(G):
     n = G.num_vertices()
@@ -52,9 +53,13 @@ def store_graph(G, dir_name, pos, labels):
       np.savez_compressed(os.path.join(path, "edge_weights.npz"), np.array(weights)[:,-1])
 
 
-def store_metrics(data, db=None, collection=None):
+def store_metrics(data, use_dir=False, db=None, collection=None):
     if not db or not collection:
-        path = os.path.join(GRAPH_ROOT, str(data["time"]), "metrics.json")
+        if use_dir:
+            file_path = os.path.join(str(data["time"]), "metrics.json")
+        else:
+            file_path = str(data["time"]) + ".json"
+        path = os.path.join(GRAPH_ROOT, file_path)
         with open(path, "w") as f:
             json.dump(data, f)
     else:
@@ -103,11 +108,12 @@ def process_lines(graph_lines):
         pos = np.flip(pos, 0)
         labels, idx = np.unique(labels, return_index=True)
         pos = pos[idx, :]
-        G = connecting_nodes(labels, pos, dir_name=str(time))
+        G = connecting_nodes(labels, pos)#, dir_name=str(time))
         return get_metrics(G, time)
     return None
 
-def read_file_graph(rawgraph, last_read_time=-1):
+def read_file_graph(rawgraph):
+    global LAST_TIME_READ
     with open(rawgraph, "r") as file_:
         graph_lines = []
         for line in file_:
@@ -118,11 +124,13 @@ def read_file_graph(rawgraph, last_read_time=-1):
                 graph_lines.append(line)
                 tmp_lines = graph_lines.copy()
                 graph_lines = []
-                if len(tmp_lines) > 1 and time > last_read_time:
+                if len(tmp_lines) > 1 and time > LAST_TIME_READ:
                     yield tmp_lines
     return None
 
-def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=None):
+def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=None, last_read_time=-1):
+    global LAST_TIME_READ
+    LAST_TIME_READ = last_read_time
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_logger = logging.getLogger('Logger')
     file_logger.setLevel(logging.DEBUG)

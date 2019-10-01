@@ -20,7 +20,7 @@ except ImportError:
      sys.exit("Please check environment variable 'SUMO_HOME; and/or try\n\n>>\t\t source $HOME/.profile")
 
 
-def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw_graph.dat"):
+def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw_graph.dat", last_read_time=-1):
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_logger = logging.getLogger('Logger')
     file_logger.setLevel(logging.DEBUG)
@@ -42,37 +42,37 @@ def run_simulation(sumocfg, minutes=10,  tripinfo="trip_info.xml", rawgraph="raw
     graph_size = 0
     id_vehicle = 1
     vehicles = {}
-    with open(rawgraph, "w") as f:
+    with open(rawgraph, "a") as f:
         while traci.simulation.getMinExpectedNumber() > 0:
             current_time = traci.simulation.getTime()
             traci.simulationStep()
-            if (current_time % interval) == 0:
-                n_vehicles = 0
-                list_size = 0
-                for veh_id in traci.vehicle.getIDList():
-                    list_size += 1
-                    graph_size += 1
-                    speed = traci.vehicle.getSpeed(veh_id)
-                    x, y = traci.vehicle.getPosition(veh_id)
-                    lon, lat = traci.simulation.convertGeo(x, y)
-                    x2, y2 = traci.simulation.convertGeo(lon, lat, fromGeo=True)
+            if current_time % interval == 0:
+                if current_time <= last_read_time:
+                    file_logger.info(
+                        "Skip time %s."%(current_time))
+                else:
+                    n_vehicles = 0
+                    for veh_id in traci.vehicle.getIDList():
+                        graph_size += 1
+                        speed = traci.vehicle.getSpeed(veh_id)
+                        x, y = traci.vehicle.getPosition(veh_id)
+                        lon, lat = traci.simulation.convertGeo(x, y)
+                        x2, y2 = traci.simulation.convertGeo(lon, lat, fromGeo=True)
 
-                    if veh_id not in vehicles:
-                        index = id_vehicle
-                        id_vehicle += 1
-                        vehicles[veh_id] = id_vehicle
-                        n_vehicles += 1
-                    else:
-                        index = vehicles[veh_id]
+                        if veh_id not in vehicles:
+                            index = id_vehicle
+                            id_vehicle += 1
+                            vehicles[veh_id] = id_vehicle
+                            n_vehicles += 1
+                        else:
+                            index = vehicles[veh_id]
 
-                    f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
-                #file_logger.info("Read a list with size %s."%(list_size))
-                #if n_vehicles >= 1:
-                n_graphs += 1
-                file_logger.info(
-                    "Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
-                f.write("END " + str(current_time) + " \n")
-                graph_size = 0
+                        f.write(str(index) + ":" + str(x2) + ":" + str(y2) + "\n")
+                    n_graphs += 1
+                    file_logger.info(
+                        "Graph number %s was simulated at %s with %s new vehicles and size %s."%(n_graphs, current_time, n_vehicles, graph_size))
+                    f.write("END " + str(current_time) + " \n")
+                    graph_size = 0
     traci.close()
     sys.stdout.flush()
 
