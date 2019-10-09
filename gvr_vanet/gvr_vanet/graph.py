@@ -27,7 +27,7 @@ def get_metrics(G, t):
     if "graph_tool" in sys.modules:
         return dict(
             time=t,
-            # nodes=list(G.vp.label),
+            nodes=list(G.vp.label),
             n_vehicle=G.num_vertices(),
             degree=list(np.array(G.degree_property_map('total').get_array()) / (G.num_vertices() - 1)),
             density=density(G)
@@ -35,7 +35,7 @@ def get_metrics(G, t):
     else:
         return dict(
             time=t,
-            # nodes=list(dict(G.nodes(data='label')).values()),
+            labels=list(dict(G.nodes(data='label')).values()),
             n_vehicle=G.number_of_nodes(),
             degree=nx.degree_centrality(G),
             density=nx.density(G)
