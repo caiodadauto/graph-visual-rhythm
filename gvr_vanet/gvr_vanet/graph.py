@@ -4,7 +4,7 @@ import time
 import json
 import logging
 import logging.handlers as handlers
-from multiprocessing import Pool, cpu_count
+from joblib import Parallel, delayed
 
 import numpy as np
 from scipy import spatial
@@ -65,7 +65,15 @@ def store_metrics(data, use_dir=False, db=None, collection=None):
     else:
         db[collection].insert_many(data)
 
-def connecting_nodes(labels, pos, dir_name=None):
+def cdist_mask(pos, th, n, sl):
+    dist = spatial.distance.cdist([pos[n]], pos[sl]).ravel()
+    mask = dist <= th
+    receivers = np.arange(sl.start, sl.stop)
+    senders = np.full_like(receivers, n)
+    dist = np.array(list(zip(senders, receivers, dist)), dtype='u4,u4,f4')
+    return dist[mask]
+
+def connecting_nodes(labels, pos, n_proc, dir_name=None):
     n_nodes = len(labels)
     transmission_range = 200.0
 
@@ -78,22 +86,22 @@ def connecting_nodes(labels, pos, dir_name=None):
         G = nx.Graph()
         G.add_nodes_from([(idx, dict(label=l)) for idx, l in zip(range(n_nodes), labels)])
 
-    for i in range(n_nodes - 1):
-        dist = spatial.distance.cdist([pos[i]], pos[(i + 1):]).ravel()
-        edges_dist = np.array(list(
-              zip([i] * dist.shape[0], range(i + 1, n_nodes), dist)
-        ), dtype='u4, u4, f4')
-        mask = np.ma.masked_less_equal(dist, transmission_range).mask
-        if np.any(mask):
-            if "graph_tool" in sys.modules:
-                G.add_edge_list(list(edges_dist[mask]), eprops=[G.ep.weight])
+    with Parallel(n_jobs=2) as parallel:
+        for i in range(n_nodes - 1):
+            size = n_nodes - (i + 1)
+            if size > n_proc * 10:
+                step = size // n_proc
+                slices = [slice(start, start + step) for start in range(i + 1, (i + 1) + (size - 2 * step), step)]
+                slices.append(slice((i + 1) + (n_proc - 1) * step, i + 1 + size))
             else:
-                G.add_weighted_edges_from(list(edges_dist[mask]))
+                slices = [slice(i + 1, n_nodes)]
+            results = Parallel(n_jobs=n_proc)(delayed(cdist_mask)(pos, transmission_range, i, sl) for sl in slices)
+            G.add_weighted_edges_from(np.concatenate(results, axis=0))
     if dir_name:
         store_graph(G, dir_name, pos, labels)
     return G
 
-def process_lines(graph_lines):
+def process_lines(graph_lines, n_proc):
     if graph_lines:
         n_lines = len(graph_lines)
         pos = np.zeros(((n_lines - 1), 2), dtype=np.float32)
@@ -108,7 +116,7 @@ def process_lines(graph_lines):
         pos = np.flip(pos, 0)
         labels, idx = np.unique(labels, return_index=True)
         pos = pos[idx, :]
-        G = connecting_nodes(labels, pos)#, dir_name=str(time))
+        G = connecting_nodes(labels, pos, n_proc)#, dir_name=str(time))
         return get_metrics(G, time)
     return None
 
@@ -146,11 +154,11 @@ def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=No
 
     n_proc = cpu_count() if not n_proc else n_proc
     graph_lines_generator = read_file_graph(rawgraph)
-    with Pool(n_proc) as p:
-        start = time.time()
-        for json_measuments in p.imap_unordered(process_lines, graph_lines_generator):
-            if json_measuments:
-                store_metrics(json_measuments, db, collection)
-                file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
-            else:
-                file_logger.info("Duration >> %s -- None"%(time.time() - start))
+    start = time.time()
+    for graph_lines in graph_lines_generator:
+        json_measuments = process_lines(graph_lines, n_proc):
+        if json_measuments:
+            store_metrics(json_measuments, db, collection)
+            file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
+        else:
+            file_logger.info("Duration >> %s -- None"%(time.time() - start))
