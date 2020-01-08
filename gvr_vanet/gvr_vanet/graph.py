@@ -156,7 +156,7 @@ def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=No
     graph_lines_generator = read_file_graph(rawgraph)
     start = time.time()
     for graph_lines in graph_lines_generator:
-        json_measuments = process_lines(graph_lines, n_proc):
+        json_measuments = process_lines(graph_lines, n_proc)
         if json_measuments:
             store_metrics(json_measuments, db, collection)
             file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
