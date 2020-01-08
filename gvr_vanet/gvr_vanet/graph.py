@@ -154,11 +154,11 @@ def measure_graphs(rawgraph='raw_graph.dat', n_proc=None, db=None, collection=No
 
     n_proc = cpu_count() if not n_proc else n_proc
     graph_lines_generator = read_file_graph(rawgraph)
-    start = time.time()
     for graph_lines in graph_lines_generator:
         json_measuments = process_lines(graph_lines, n_proc)
         if json_measuments:
+            start = time.time()
             store_metrics(json_measuments, db, collection)
-            file_logger.info("Duration >> %s -- Graph size >> %s"%(time.time() - start, json_measuments["n_vehicle"]))
+            file_logger.info("Graph %s:\n\t\tDuration -> %s\n\t\tGraph Size -> %s"%(json_measuments["time"], time.time() - start, json_measuments["n_vehicle"]))
         else:
-            file_logger.info("Duration >> %s -- None"%(time.time() - start))
+            file_logger.info("None")
