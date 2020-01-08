@@ -86,13 +86,13 @@ def connecting_nodes(labels, pos, n_proc, dir_name=None):
         G = nx.Graph()
         G.add_nodes_from([(idx, dict(label=l)) for idx, l in zip(range(n_nodes), labels)])
 
-    with Parallel(n_jobs=2) as parallel:
+    with Parallel(n_jobs=n_proc) as parallel:
         for i in range(n_nodes - 1):
             size = n_nodes - (i + 1)
             if size > n_proc * 10:
                 step = size // n_proc
                 slices = [slice(start, start + step) for start in range(i + 1, (i + 1) + (size - 2 * step), step)]
-                slices.append(slice((i + 1) + (n_proc - 1) * step, i + 1 + size))
+                slices.append(slice((i + 1) + (n_proc - 1) * step, n_nodes))
             else:
                 slices = [slice(i + 1, n_nodes)]
             results = Parallel(n_jobs=n_proc)(delayed(cdist_mask)(pos, transmission_range, i, sl) for sl in slices)
